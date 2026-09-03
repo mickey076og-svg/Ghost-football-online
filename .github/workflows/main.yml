@@ -1,19 +1,103 @@
-name: Create build.yml
+name: Build APK FINAL FIXED
 on: [push, workflow_dispatch]
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
           java-version: '17'
           distribution: 'temurin'
+          
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
+        
+      - name: Auto-Create Ghost Football Project
+        run: |
+          mkdir -p app/src/main/java/com/ghostfootball/game
+          mkdir -p app/src/main/res/layout
+          mkdir -p gradle/wrapper
+          
+          echo "include ':app'" > settings.gradle
+          
+          cat > build.gradle <<'EOF'
+          buildscript {
+              repositories { google(); mavenCentral() }
+              dependencies {
+                  classpath 'com.android.tools.build:gradle:8.1.0'
+                  classpath 'com.google.gms:google-services:4.4.1'
+              }
+          }
+          allprojects { repositories { google(); mavenCentral() } }
+          EOF
+          
+          cat > app/build.gradle <<'EOF'
+          plugins { id 'com.android.application'; id 'com.google.gms.google-services' }
+          android {
+              namespace 'com.ghostfootball.game'
+              compileSdk 34
+              defaultConfig {
+                  applicationId "com.ghostfootball.game"
+                  minSdk 24
+                  targetSdk 34
+                  versionCode 6
+                  versionName "6.0-Italian"
+              }
+          }
+          dependencies {
+              implementation 'androidx.appcompat:appcompat:1.6.1'
+              implementation 'com.google.firebase:firebase-database:20.3.0'
+          }
+          EOF
+          
+          cat > gradle/wrapper/gradle-wrapper.properties <<'EOF'
+          distributionBase=GRADLE_USER_HOME
+          distributionPath=wrapper/dists
+          distributionUrl=https\://services.gradle.org/distributions/gradle-8.0-bin.zip
+          zipStoreBase=GRADLE_USER_HOME
+          zipStorePath=wrapper/dists
+          EOF
+          
+          cat > app/src/main/AndroidManifest.xml <<'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+              <uses-permission android:name="android.permission.INTERNET"/>
+              <application android:allowBackup="true" android:label="Ghost Football Online" android:theme="@android:style/Theme.NoTitleBar.Fullscreen">
+                  <activity android:name=".MenuActivity" android:exported="true">
+                      <intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter>
+                  </activity>
+                  <activity android:name=".MainActivity" android:exported="true"/>
+              </application>
+          </manifest>
+          EOF
+          
+          echo '{"project_info":{"project_number":"123","project_id":"ghost"},"client":[{"client_info":{"mobilesdk_app_id":"1:123:android:abc","android_client_info":{"package_name":"com.ghostfootball.game"}},"api_key":[{"current_key":"fake"}]}]}' > app/google-services.json
+          
+          cat > app/src/main/java/com/ghostfootball/game/CommentatorManager.java <<'EOF'
+          package com.ghostfootball.game; import android.content.Context; import android.speech.tts.TextToSpeech; import java.util.Locale; import java.util.Random; public class CommentatorManager { TextToSpeech tts; Random r=new Random(); String[] g={"GOOOOOL! CHE GOLAZO!","MAMMA MIA! CHE GOL FANTASTICO!","RETE! GOL BELLISSIMO!","GOL! GOL! INCREDIBILE!"}; public CommentatorManager(Context c){ tts=new TextToSpeech(c,s->{ if(s==TextToSpeech.SUCCESS){ tts.setLanguage(new Locale("it","IT")); tts.setSpeechRate(1.1f); speak("Si parte! Forza ragazzi!"); }}); } void speak(String t){ if(tts!=null) tts.speak(t,TextToSpeech.QUEUE_FLUSH,null,null); } void onGoal(){ speak(g[r.nextInt(g.length)]); } }
+          EOF
+          
+          cat > app/src/main/java/com/ghostfootball/game/MenuActivity.java <<'EOF'
+          package com.ghostfootball.game; import android.content.Intent; import android.os.Bundle; import android.widget.*; import androidx.appcompat.app.AppCompatActivity; import java.util.Random; public class MenuActivity extends AppCompatActivity { protected void onCreate(Bundle b){ super.onCreate(b); LinearLayout lay=new LinearLayout(this); lay.setOrientation(LinearLayout.VERTICAL); lay.setPadding(40,80,40,40); lay.setBackgroundColor(0xFF0A4B1A); TextView tv=new TextView(this); tv.setText("GHOST FOOTBALL\nONLINE Italian"); tv.setTextSize(28); tv.setTextColor(0xFFFFFFFF); tv.setGravity(1); lay.addView(tv); TextView code=new TextView(this); code.setTextSize(24); code.setTextColor(0xFFFFFF00); code.setGravity(1); code.setPadding(0,30,0,30); lay.addView(code); Button cr=new Button(this); cr.setText("CREATE ROOM CODE"); lay.addView(cr); EditText inp=new EditText(this); inp.setHint("Enter GHOST-XXXX"); inp.setBackgroundColor(0xFFFFFFFF); lay.addView(inp); Button jo=new Button(this); jo.setText("JOIN ROOM"); lay.addView(jo); Button off=new Button(this); off.setText("PLAY OFFLINE - GOOOOL!"); lay.addView(off); cr.setOnClickListener(v->{ String c="GHOST-"+(1000+new Random().nextInt(9000)); code.setText("Your Code:\n"+c+"\nShare WhatsApp!"); getSharedPreferences("game",0).edit().putString("room",c).apply(); }); jo.setOnClickListener(v->{ String c=inp.getText().toString().trim().toUpperCase(); if(c.length()<5) return; getSharedPreferences("game",0).edit().putString("room",c).apply(); startActivity(new Intent(this,MainActivity.class)); }); off.setOnClickListener(v->{ getSharedPreferences("game",0).edit().putString("room","OFFLINE").apply(); startActivity(new Intent(this,MainActivity.class)); }); code.setOnClickListener(v->{ if(!code.getText().toString().isEmpty()) startActivity(new Intent(this,MainActivity.class)); }); setContentView(lay); } }
+          EOF
+          
+          cat > app/src/main/java/com/ghostfootball/game/MainActivity.java <<'EOF'
+          package com.ghostfootball.game; import android.os.Bundle; import androidx.appcompat.app.AppCompatActivity; public class MainActivity extends AppCompatActivity { FootballView gv; CommentatorManager cm; protected void onCreate(Bundle b){ super.onCreate(b); cm=new CommentatorManager(this); gv=new FootballView(this,null); gv.setRoom(getSharedPreferences("game",0).getString("room","OFFLINE"),cm); setContentView(gv); } protected void onPause(){ super.onPause(); gv.pause(); } protected void onResume(){ super.onResume(); gv.resume(); } }
+          EOF
+          
+          cat > app/src/main/java/com/ghostfootball/game/FootballView.java <<'EOF'
+          package com.ghostfootball.game; import android.content.Context; import android.graphics.*; import android.util.AttributeSet; import android.view.MotionEvent; import android.view.SurfaceView; public class FootballView extends SurfaceView implements Runnable { Thread th; boolean play; Paint p=new Paint(); float bx=540,by=960,bvx=0,bvy=0,px=400,py=960,ex=680,ey=960; int s1=0,s2=0; float jx=0,jy=0; CommentatorManager com; String room="OFFLINE"; public FootballView(Context c,AttributeSet a){ super(c,a); } public void setRoom(String r,CommentatorManager c){ room=r; com=c; } public void resume(){ play=true; th=new Thread(this); th.start(); } public void pause(){ play=false; try{th.join();}catch(Exception e){} } public boolean onTouchEvent(MotionEvent e){ jx=(e.getX()-540)/200f; jy=(e.getY()-960)/200f; return true; } public void run(){ while(play){ px+=jx*8; py+=jy*8; px=Math.max(30,Math.min(1050,px)); py=Math.max(30,Math.min(1890,py)); if(Math.hypot(px-bx,py-by)<60){ bvx=(bx-px)*0.1f; bvy=(by-py)*0.1f; } bx+=bvx; by+=bvy; bvx*=0.985f; bvy*=0.985f; ex+=(bx-ex)*0.03f; ey+=(by-ey)*0.03f; if(bx<0||bx>1080) bvx*=-1; if(by<0||by>1920) bvy*=-1; if(by>400&&by<900){ if(bx<35){ s2++; if(com!=null) com.onGoal(); bx=540; by=960; bvx=0; bvy=0; } if(bx>1045){ s1++; if(com!=null) com.onGoal(); bx=540; by=960; bvx=0; bvy=0; } } try{Thread.sleep(16);}catch(Exception ex){} Canvas cv=getHolder().lockCanvas(); if(cv==null) continue; cv.drawColor(0xFF1B5E20); p.setColor(0xFFFFFFFF); p.setStrokeWidth(4); p.setStyle(Paint.Style.STROKE); cv.drawRect(50,50,1030,1870,p); cv.drawLine(50,960,1030,960,p); cv.drawCircle(540,960,90,p); p.setStyle(Paint.Style.FILL); cv.drawRect(0,400,30,900,p); cv.drawRect(1050,400,1080,900,p); p.setColor(0xFF2196F3); cv.drawCircle(px,py,32,p); p.setColor(0xFFF44336); cv.drawCircle(ex,ey,32,p); p.setColor(0xFFFFFFFF); cv.drawCircle(bx,by,18,p); p.setTextSize(60); cv.drawText(s1+" - "+s2,470,140,p); p.setTextSize(26); cv.drawText(room+" ITALIAN",40,1900,p); getHolder().unlockCanvasAndPost(cv); } } }
+          EOF
+
       - name: Build APK
-        run: gradle assembleDebug
+        run: |
+          gradle wrapper --gradle-version 8.0
+          chmod +x gradlew
+          ./gradlew assembleDebug
+
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
