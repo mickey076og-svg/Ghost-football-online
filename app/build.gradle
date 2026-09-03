@@ -1,0 +1,18 @@
+plugins { id 'com.android.application'; id 'com.google.gms.google-services' }
+android {
+    namespace 'com.ghostfootball.game'
+    compileSdk 34
+    defaultConfig {
+        applicationId "com.ghostfootball.game"
+        minSdk 24
+        targetSdk 34
+        versionCode 2
+        versionName "2.0-Online"
+    }
+    buildTypes { release { minifyEnabled false } }
+}
+dependencies {
+    implementation 'androidx.appcompat:appcompat:1.6.1'
+    implementation 'com.google.firebase:firebase-database:20.3.0'
+    implementation 'com.google.firebase:firebase-analytics:21.5.0'
+}
